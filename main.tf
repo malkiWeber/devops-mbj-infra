@@ -1,40 +1,4 @@
-# # Configure the Google Cloud provider
-# # provider "google" {
-# #   credentials = file("./service-account-key.json")
-# #   project = "terraform-tamar-weber"
-# #   region  = "me-west1"
-# # }
 
-# provider "google" {
-
-# credentials = file("./service-account-key.json")
-
-# project = "future-cat-447812-u0" # Change to the correct project ID
-
-# region = "me-west1"
-
-# }
-
-# # Create a Google Compute instance
-# resource "google_compute_instance" "example" {
-#   name          = "example"
-#   machine_type  = "e2-micro"
-#   zone          = "me-west1-b"
-  
-#   boot_disk {
-#     initialize_params {
-#       image = "projects/debian-cloud/global/images/family/debian-12"
-#     }
-#   }
-  
-#   network_interface {
-#     network = "default"
-
-#     access_config {
-#       // Ephemeral IP
-#     }
-#   }
-# }
 
 
 provider "google" {
