@@ -1,19 +1,20 @@
 variable "project_id" {
-  description = "GCP Project ID"
+  description = "The GCP project ID"
   type        = string
 }
 
 variable "region" {
-  description = "GCP Region"
-  type        = string
-}
-
-variable "zone" {
-  description = "GCP Zone"
+  description = "The GCP region where resources will be created"
   type        = string
 }
 
 variable "name" {
-  description = "Name"
+  description = "Prefix for instance and resource names"
   type        = string
+}
+
+variable "machine_type" {
+  description = "Machine type for the instance template"
+  type        = string
+  default     = "e2-micro" # Default value, can be overridden
 }

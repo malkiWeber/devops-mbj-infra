@@ -1,110 +1,83 @@
-# # Configure the Google Cloud provider
-# # provider "google" {
-# #   credentials = file("./service-account-key.json")
-# #   project = "terraform-tamar-weber"
-# #   region  = "me-west1"
-# # }
-
-# provider "google" {
-
-# credentials = file("./service-account-key.json")
-
-# project = "future-cat-447812-u0" # Change to the correct project ID
-
-# region = "me-west1"
-
-# }
-
-# # Create a Google Compute instance
-# resource "google_compute_instance" "example" {
-#   name          = "example"
-#   machine_type  = "e2-micro"
-#   zone          = "me-west1-b"
-  
-#   boot_disk {
-#     initialize_params {
-#       image = "projects/debian-cloud/global/images/family/debian-12"
-#     }
-#   }
-  
-#   network_interface {
-#     network = "default"
-
-#     access_config {
-#       // Ephemeral IP
-#     }
-#   }
-# }
-
-
 provider "google" {
-  credentials = file("./service-account-key.json")
-  project     = var.project_id
-  region      = var.region
+  credentials = file("service-account-key.json")
+  project = var.project_id
+  region  = var.region
 }
 
-# Removed the google_compute_network resource
-# resource "google_compute_network" "default" {
-#   name = "default"
-# }
+resource "google_compute_instance_template" "instance_template" {
+  name_prefix = "${var.name}-template"
+  machine_type = var.machine_type
+  region       = var.region
 
-# Define a subnetwork using the existing default network
-resource "google_compute_subnetwork" "custom_subnetwork" {
-   name          = "{var.name}-subnetwork"  # Keep as a unique name
-  network       = "default"                  # Reference the existing default network
-  ip_cidr_range = "10.0.0.0/24"              # Updated to a non-overlapping CIDR range
-  region        = var.region
-}
-
-resource "google_compute_region_instance_template" "template" {
-  name          = "${var.name}-template"
-  machine_type  = "e2-micro"
+  tags = ["web-server"]
 
   disk {
-    source_image = "projects/debian-cloud/global/images/family/debian-12"
+    auto_delete = true
+    boot        = true
+    source_image = "debian-cloud/debian-11"
   }
 
   network_interface {
-    network    = "default"  # Ensure this references the existing default network
-    access_config {}
+    network    = "default"
+    access_config {
+      # Ephemeral public IP
+    }
   }
 
-  metadata_startup_script = file("startup.sh")
+  metadata_startup_script = file("./startup.sh")
 }
 
 resource "google_compute_region_instance_group_manager" "mig" {
-  name                    = "${var.name}-mig"
-  
+  name                  = "${var.name}-mig"
+  base_instance_name    = "${var.name}-instance"
+  region                = var.region
   version {
-    instance_template = google_compute_region_instance_template.template.self_link
+    instance_template = google_compute_instance_template.instance_template.self_link
   }
-  
-  base_instance_name      = "${var.name}-instance"
-  region                  = var.region
-  target_size             = 1
+  target_size = 2
 
-  depends_on = [google_compute_region_instance_template.template]
+  auto_healing_policies {
+    health_check      = google_compute_region_health_check.health_check.self_link
+    initial_delay_sec = 300
+  }
+
+  depends_on = [google_compute_instance_template.instance_template]
 }
 
 resource "google_compute_region_autoscaler" "autoscaler" {
-  name   = "${var.name}-autoscaler"
-  target = google_compute_region_instance_group_manager.mig.self_link
+  name = "${lower(var.name)}-autoscaler"
+  region  = var.region
+  target  = google_compute_region_instance_group_manager.mig.self_link
 
   autoscaling_policy {
-    min_replicas = 1
-    max_replicas = 3
+    max_replicas    = 5
+    min_replicas    = 1
+    cpu_utilization {
+      target = 0.6
+    }
   }
+
+  depends_on = [google_compute_region_instance_group_manager.mig]
 }
 
 resource "google_compute_region_health_check" "health_check" {
-  name                = "example-health-check"
-  check_interval_sec  = 10
-  timeout_sec         = 5
-  healthy_threshold   = 2
-  unhealthy_threshold = 2
-
+  name                = "${var.name}-health-check"
+  region              = var.region
   http_health_check {
-    port = 80
     request_path = "/"
+    port         = "80"
   }
+}
+
+resource "google_compute_firewall" "health_check_firewall" {
+  name = "${lower(var.name)}-hc-firewall"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["web-server"]
 }
